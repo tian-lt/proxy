@@ -8,5 +8,7 @@ on:
 
 jobs:
   nuget-pack:
-    run: |
-      nuget --version
+    runs-on: windows-2022
+    steps:
+    - run: |
+        nuget --version
