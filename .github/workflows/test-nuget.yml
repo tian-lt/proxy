@@ -1,0 +1,12 @@
+name: Proxy-CI
+
+on:
+  push:
+    branches: [ main, release/** ]
+  pull_request:
+    branches: [ main, release/** ]
+
+job:
+  nuget-pack:
+    run: |
+      nuget --version
