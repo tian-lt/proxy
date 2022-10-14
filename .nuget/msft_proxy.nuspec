@@ -1,0 +1,20 @@
+<!-- this nuget spec should be used to publish to GitHub -->
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>msft_proxy</id>
+    <version>0.0.0</version>  <!-- to be overridden -->
+    <description>A single-header C++20 library that facilitates runtime polymorphism.</description>
+    <authors>Microsoft</authors>
+    <license type="expression">MIT</license>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <copyright>© Microsoft Corporation. All rights reserved.</copyright>
+    <projectUrl>https://github.com/microsoft/proxy</projectUrl>
+    <repository type="git" url="https://github.com/microsoft/proxy.git" branch="main" />
+    <language>en-US</language>
+  </metadata>
+  <files>
+    <file src="../proxy.h" target="build/native/include/" />
+    <file src="msft_proxy.props" target="build/native" />
+  </files>
+</package> 
