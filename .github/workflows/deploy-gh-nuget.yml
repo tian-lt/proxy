@@ -27,6 +27,6 @@ jobs:
         nuget pack . -Version ${{ inputs.version }}
     - name: upload to github
       run: |
-        nuget source Add -Name "github" -Source "https://nuget.pkg.github.com/tian-lt/proxy/index.json" -UserName "${{ inputs.user }}" -Password "${{ inputs.pat }}"
+        nuget source Add -Name "github" -Source "https://nuget.pkg.github.com/tian-lt/index.json" -UserName "${{ inputs.user }}" -Password "${{ inputs.pat }}"
         nuget push "msft_proxy.${{ inputs.version }}.nupkg" -Source github
     
