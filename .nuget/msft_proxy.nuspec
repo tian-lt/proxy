@@ -1,6 +1,6 @@
-<!-- this nuget spec should be used to publish to GitHub -->
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+<!-- this nuget spec should be used to publish to GitHub -->
   <metadata>
     <id>msft_proxy</id>
     <version>0.0.0</version>  <!-- to be overridden -->
