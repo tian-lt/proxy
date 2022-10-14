@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main, release/** ]
 
-job:
+jobs:
   nuget-pack:
     run: |
       nuget --version
