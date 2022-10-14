@@ -5,7 +5,7 @@
     <id>msft_proxy</id>
     <version>0.0.0</version>  <!-- to be overridden -->
     <description>A single-header C++20 library that facilitates runtime polymorphism.</description>
-    <authors>Microsoft</authors>
+    <authors>tian-lt</authors>
     <license type="expression">MIT</license>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <copyright>© Microsoft Corporation. All rights reserved.</copyright>
