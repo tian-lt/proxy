@@ -1,0 +1,24 @@
+name: Mock-Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      user:
+        description: 'github user id'
+        required: true
+      pat:
+        description: 'personal access token'
+        required: true
+      version:
+        description: 'version'
+        required: true
+
+jobs:
+  run-deploy-gh-nuget:
+    name: deploy nuget package to github
+    uses: ./.github/workflows/deploy-gh-nuget.yml
+    with:
+      user: ${{ github.event.inputs.user }}
+      pat: ${{ github.event.inputs.pat }}
+      tag: main
+      version: ${{ github.event.inputs.version }}
