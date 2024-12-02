@@ -1,39 +1,30 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 #include <gtest/gtest.h>
 #include <memory>
 #include <typeinfo>
 #include "proxy.h"
+#include "utils.h"
 
-namespace {
+namespace proxy_reflection_tests_details {
 
-template <class F>
-concept ReflectionApplicable = requires(pro::proxy<F> p) {
-  { p.reflect() };
-};
-
-class RttiReflection {
+struct TraitsReflector {
  public:
-  template <class P>
-  constexpr explicit RttiReflection(std::in_place_type_t<P>)
-      : type_(typeid(P)) {}
+  template <class T>
+  constexpr explicit TraitsReflector(std::in_place_type_t<T>)
+      : is_default_constructible_(std::is_default_constructible_v<T>),
+        is_copy_constructible_(std::is_copy_constructible_v<T>),
+        is_nothrow_move_constructible_(std::is_nothrow_move_constructible_v<T>),
+        is_nothrow_destructible_(std::is_nothrow_destructible_v<T>),
+        is_trivial_(std::is_trivial_v<T>) {}
 
-  const char* GetName() const noexcept { return type_.name(); }
-
- private:
-  const std::type_info& type_;
-};
-
-struct TraitsReflection {
- public:
-  template <class P>
-  constexpr explicit TraitsReflection(std::in_place_type_t<P>)
-      : is_default_constructible_(std::is_default_constructible_v<P>),
-        is_copy_constructible_(std::is_copy_constructible_v<P>),
-        is_nothrow_move_constructible_(std::is_nothrow_move_constructible_v<P>),
-        is_nothrow_destructible_(std::is_nothrow_destructible_v<P>),
-        is_trivial_(std::is_trivial_v<P>) {}
+  template <class F, class R>
+  struct accessor {
+    const TraitsReflector& ReflectTraits() const noexcept {
+      return pro::proxy_reflect<R>(pro::access_proxy<F>(*this));
+    }
+  };
 
   bool is_default_constructible_;
   bool is_copy_constructible_;
@@ -42,45 +33,47 @@ struct TraitsReflection {
   bool is_trivial_;
 };
 
-using DefaultFacade = pro::facade<>;
-static_assert(!ReflectionApplicable<DefaultFacade>);
+struct TestRttiFacade : pro::facade_builder
+    ::add_reflection<utils::RttiReflector>
+    ::add_direct_reflection<utils::RttiReflector>
+    ::build {};
 
-struct TestRttiFacade : pro::facade<>
-    { using reflection_type = RttiReflection; };
-static_assert(ReflectionApplicable<TestRttiFacade>);
+struct TestTraitsFacade : pro::facade_builder
+    ::add_direct_reflection<TraitsReflector>
+    ::build {};
 
-struct TestTraitsFacade : pro::facade<>
-    { using reflection_type = TraitsReflection; };
-static_assert(ReflectionApplicable<TestTraitsFacade>);
+}  // namespace proxy_reflection_tests_details
 
-}  // namespace
+namespace details = proxy_reflection_tests_details;
 
 TEST(ProxyReflectionTests, TestRtti_RawPtr) {
   int foo = 123;
-  pro::proxy<TestRttiFacade> p = &foo;
-  ASSERT_EQ(p.reflect().GetName(), typeid(int*).name());
+  pro::proxy<details::TestRttiFacade> p = &foo;
+  ASSERT_STREQ(p.GetTypeName(), typeid(int*).name());
+  ASSERT_STREQ(p->GetTypeName(), typeid(int).name());
 }
 
 TEST(ProxyReflectionTests, TestRtti_FancyPtr) {
-  pro::proxy<TestRttiFacade> p = std::make_unique<double>(1.23);
-  ASSERT_EQ(p.reflect().GetName(), typeid(std::unique_ptr<double>).name());
+  pro::proxy<details::TestRttiFacade> p = std::make_unique<double>(1.23);
+  ASSERT_STREQ(p.GetTypeName(), typeid(std::unique_ptr<double>).name());
+  ASSERT_STREQ(p->GetTypeName(), typeid(double).name());
 }
 
 TEST(ProxyReflectionTests, TestTraits_RawPtr) {
   int foo = 123;
-  pro::proxy<TestTraitsFacade> p = &foo;
-  ASSERT_EQ(p.reflect().is_default_constructible_, true);
-  ASSERT_EQ(p.reflect().is_copy_constructible_, true);
-  ASSERT_EQ(p.reflect().is_nothrow_move_constructible_, true);
-  ASSERT_EQ(p.reflect().is_nothrow_destructible_, true);
-  ASSERT_EQ(p.reflect().is_trivial_, true);
+  pro::proxy<details::TestTraitsFacade> p = &foo;
+  ASSERT_EQ(p.ReflectTraits().is_default_constructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_copy_constructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_nothrow_move_constructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_nothrow_destructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_trivial_, true);
 }
 
 TEST(ProxyReflectionTests, TestTraits_FancyPtr) {
-  pro::proxy<TestTraitsFacade> p = std::make_unique<double>(1.23);
-  ASSERT_EQ(p.reflect().is_default_constructible_, true);
-  ASSERT_EQ(p.reflect().is_copy_constructible_, false);
-  ASSERT_EQ(p.reflect().is_nothrow_move_constructible_, true);
-  ASSERT_EQ(p.reflect().is_nothrow_destructible_, true);
-  ASSERT_EQ(p.reflect().is_trivial_, false);
+  pro::proxy<details::TestTraitsFacade> p = std::make_unique<double>(1.23);
+  ASSERT_EQ(p.ReflectTraits().is_default_constructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_copy_constructible_, false);
+  ASSERT_EQ(p.ReflectTraits().is_nothrow_move_constructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_nothrow_destructible_, true);
+  ASSERT_EQ(p.ReflectTraits().is_trivial_, false);
 }

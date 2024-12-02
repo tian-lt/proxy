@@ -5,20 +5,30 @@ on:
     branches: [ main, release/** ]
   pull_request:
     branches: [ main, release/** ]
-
-env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
+  workflow_dispatch:
 
 jobs:
-  run-bvt-gcc11:
-    uses: ./.github/workflows/bvt-gcc11.yml
-    name: run bvt with g++ 11
+  run-bvt-gcc:
+    uses: ./.github/workflows/bvt-gcc.yml
+    name: Run BVT with GCC
 
-  run-bvt-clang14:
-    uses: ./.github/workflows/bvt-clang14.yml
-    name: run bvt with clang 14
+  run-bvt-clang:
+    uses: ./.github/workflows/bvt-clang.yml
+    name: Run BVT with Clang
 
-  run-bvt-msvc14:
-    uses: ./.github/workflows/bvt-msvc14.yml
-    name: run bvt with msvc14 (vs2022)
+  run-bvt-msvc:
+    uses: ./.github/workflows/bvt-msvc.yml
+    name: Run BVT with MSVC
+
+  run-bvt-appleclang:
+    uses: ./.github/workflows/bvt-appleclang.yml
+    name: Run BVT with AppleClang
+
+  run-bvt-nvhpc:
+    uses: ./.github/workflows/bvt-nvhpc.yml
+    name: Run BVT with NVHPC
+
+  report:
+    uses: ./.github/workflows/bvt-report.yml
+    name: Generate report
+    needs: [run-bvt-gcc, run-bvt-clang, run-bvt-msvc, run-bvt-appleclang, run-bvt-nvhpc]

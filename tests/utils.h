@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 #ifndef _MSFT_PROXY_TEST_UTILS_
@@ -50,10 +50,11 @@ class LifetimeTracker {
     Session(const Session& rhs)
         : id_(rhs.host_->AllocateId(LifetimeOperationType::kCopyConstruction)),
           host_(rhs.host_) {}
-    Session(Session&& rhs) noexcept :
+    Session(Session&& rhs) :
           id_(rhs.host_->AllocateId(LifetimeOperationType::kMoveConstruction)),
           host_(rhs.host_) {}
     ~Session() { host_->ops_.emplace_back(id_, LifetimeOperationType::kDestruction); }
+    const Session* operator->() const { return this; }
     const Session& operator*() const { return *this; }
     friend std::string to_string(const Session& self) { return "Session " + std::to_string(self.id_); }
 
@@ -80,12 +81,32 @@ class LifetimeTracker {
   std::vector<LifetimeOperation> ops_;
 };
 
-struct ToString : pro::dispatch<std::string()> {
+namespace spec {
+
+using std::to_string;
+PRO_DEF_FREE_DISPATCH(FreeToString, to_string, ToString);
+
+struct Stringable : pro::facade_builder
+    ::add_convention<FreeToString, std::string()>
+    ::build {};
+
+}  // namespace spec
+
+class RttiReflector {
+ public:
   template <class T>
-  std::string operator()(const T& self) {
-    using std::to_string;
-    return to_string(self);
-  }
+  constexpr explicit RttiReflector(std::in_place_type_t<T>) : type_(typeid(T)) {}
+
+  template <class F, class R>
+  struct accessor {
+    const char* GetTypeName() const noexcept {
+      const RttiReflector& self = pro::proxy_reflect<R>(pro::access_proxy<F>(*this));
+      return self.type_.name();
+    }
+  };
+
+ private:
+  const std::type_info& type_;
 };
 
 }  // namespace utils

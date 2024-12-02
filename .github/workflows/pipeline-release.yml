@@ -9,83 +9,59 @@ on:
         default: '0.0.0'
 
 jobs:
-  prepare-release:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v3
+  run-bvt-gcc:
+    name: Run BVT with GCC
+    uses: ./.github/workflows/bvt-gcc.yml
 
-    - name: create release branch
+  run-bvt-clang:
+    name: Run BVT with Clang
+    uses: ./.github/workflows/bvt-clang.yml
+
+  run-bvt-msvc:
+    name: Run BVT with MSVC
+    uses: ./.github/workflows/bvt-msvc.yml
+
+  run-bvt-appleclang:
+    name: Run BVT with AppleClang
+    uses: ./.github/workflows/bvt-appleclang.yml
+
+  run-bvt-nvhpc:
+    name: Run BVT with NVHPC
+    uses: ./.github/workflows/bvt-nvhpc.yml
+
+  report:
+    uses: ./.github/workflows/bvt-report.yml
+    name: Generate report
+    needs: [run-bvt-gcc, run-bvt-clang, run-bvt-msvc, run-bvt-appleclang, run-bvt-nvhpc]
+
+  draft-release:
+    name: Draft release
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    needs: report
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: create tag
       run: |
         git checkout -b release/${{ github.event.inputs.version }}
-
-    - name: assign cmake version
-      run: "((Get-Content -Path CMakeLists.txt -Raw) -Replace 'VERSION 0.1.0 # local build version','VERSION ${{ github.event.inputs.version }}') | Set-Content -Path CMakeLists.txt -NoNewLine"
-
-    - name: commit changes
-      run: |
+        sed -i 's/VERSION 0\.1\.0 # local build version/VERSION ${{ github.event.inputs.version }}/' CMakeLists.txt
         git config --local user.email "release-bot@no.email.com"
         git config --local user.name "release bot"
         git add CMakeLists.txt
-        git commit -m 'assign a release version'
-
-    - name: new git tag
-      run: |
+        git commit -m "Release version ${{ github.event.inputs.version }}"
         git tag ${{ github.event.inputs.version }}
-
-    - name: push git objects
-      run: |
-        git push origin release/${{ github.event.inputs.version }}
         git push origin ${{ github.event.inputs.version }}
 
-  run-bvt-gcc11:
-    needs: prepare-release
-    name: run bvt with g++ 11
-    uses: ./.github/workflows/bvt-gcc11.yml
-    with:
-      branch: release/${{ github.event.inputs.version }}
+    - name: create tgz archive
+      run: tar -czf "proxy-${{ github.event.inputs.version }}.tgz" "proxy.h"
 
-  run-bvt-clang14:
-    needs: prepare-release
-    name: run bvt with clang 14
-    uses: ./.github/workflows/bvt-clang14.yml
-    with:
-      branch: release/${{ github.event.inputs.version }}
-
-  run-bvt-msvc14:
-    needs: prepare-release
-    name: run bvt with msvc14 (vs2022)
-    uses: ./.github/workflows/bvt-msvc14.yml
-    with:
-      branch: release/${{ github.event.inputs.version }}
-
-  draft-release:
-    runs-on: windows-latest
-    needs: [run-bvt-gcc11, run-bvt-clang14, run-bvt-msvc14]
-    steps:
-    - uses: actions/checkout@v3
+    - name: create release draft
+      uses: softprops/action-gh-release@v2
       with:
-        ref: release/${{ github.event.inputs.version }}
-
-    - name: create zip archive
-      run: Compress-Archive -Path ".\proxy.h" -DestinationPath ".\proxy-${{ github.event.inputs.version }}.zip"
-
-    - uses: actions/create-release@v1
-      name: create release draft
-      id: release_draft
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.event.inputs.version }}
-        release_name: Proxy ${{ github.event.inputs.version }} Release
         draft: true
-        prerelease: true
-
-    - name: upload artifacts
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.release_draft.outputs.upload_url }}
-        asset_path: ./proxy-${{ github.event.inputs.version }}.zip
-        asset_name: proxy-${{ github.event.inputs.version }}.zip
-        asset_content_type: application/zip
+        files: proxy-${{ github.event.inputs.version }}.tgz
+        name: Proxy ${{ github.event.inputs.version }} Release
+        tag_name: ${{ github.event.inputs.version }}
+        generate_release_notes: true

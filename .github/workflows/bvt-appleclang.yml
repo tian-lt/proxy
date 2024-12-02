@@ -1,0 +1,36 @@
+on:
+  workflow_call:
+    inputs:
+      branch:
+        type: string
+        required: false
+
+jobs:
+  bvt-appleclang:
+    runs-on: macos-15
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch }}
+
+    - name: check compiler versions
+      run: |
+        clang --version
+        xcodebuild -version
+
+    - name: build and run test with AppleClang
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build -j
+        ctest --test-dir build -j
+
+    - name: run benchmarks
+      run: |
+        cd build/benchmarks
+        ./msft_proxy_benchmarks --benchmark_min_warmup_time=0.1 --benchmark_min_time=0.1s --benchmark_repetitions=30 --benchmark_enable_random_interleaving=true --benchmark_report_aggregates_only=true --benchmark_format=json > benchmarking-results.json
+
+    - name: archive benchmarking results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmarking-results-appleclang
+        path: build/benchmarks/benchmarking-results.json

@@ -1,0 +1,60 @@
+on:
+  workflow_call:
+    inputs:
+      branch:
+        type: string
+        required: false
+
+jobs:
+  bvt-gcc:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch }}
+
+    - name: install gcc
+      run: |
+        sudo apt install -y gcc-11 g++-11 gcc-12 g++-12 gcc-13 g++-13 gcc-14 g++-14
+
+    - name: check compiler versions
+      run: |
+        g++-11 --version
+        g++-12 --version
+        g++-13 --version
+        g++-14 --version
+
+    - name: build and run test with gcc 11
+      run: |
+        cmake -B build-gcc-11 -DCMAKE_C_COMPILER=gcc-11 -DCMAKE_CXX_COMPILER=g++-11 -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-gcc-11 -j
+        ctest --test-dir build-gcc-11 -j
+
+    - name: build and run test with gcc 12
+      run: |
+        cmake -B build-gcc-12 -DCMAKE_C_COMPILER=gcc-12 -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-gcc-12 -j
+        ctest --test-dir build-gcc-12 -j
+
+    - name: build and run test with gcc 13
+      run: |
+        cmake -B build-gcc-13 -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-gcc-13 -j
+        ctest --test-dir build-gcc-13 -j
+
+    - name: build and run test with gcc 14
+      run: |
+        cmake -B build-gcc-14 -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-gcc-14 -j
+        ctest --test-dir build-gcc-14 -j
+
+    - name: run benchmarks
+      run: |
+        cd build-gcc-14/benchmarks
+        ./msft_proxy_benchmarks --benchmark_min_warmup_time=0.1 --benchmark_min_time=0.1s --benchmark_repetitions=30 --benchmark_enable_random_interleaving=true --benchmark_report_aggregates_only=true --benchmark_format=json > benchmarking-results.json
+
+    - name: archive benchmarking results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmarking-results-gcc
+        path: build-gcc-14/benchmarks/benchmarking-results.json

@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 #include <gtest/gtest.h>
@@ -11,26 +11,29 @@
 #include <vector>
 #include "proxy.h"
 
-namespace {
+namespace proxy_integration_tests_details {
 
-struct Draw : pro::dispatch<void(std::ostream&)> {
-  template <class T>
-  void operator()(const T& self, std::ostream& out) { self.Draw(out); }
-};
-struct Area : pro::dispatch<double()> {
-  template <class T>
-  double operator()(const T& self) { return self.Area(); }
-};
+PRO_DEF_MEM_DISPATCH(MemDraw, Draw);
+PRO_DEF_MEM_DISPATCH(MemArea, Area);
 
-struct DrawableFacade : pro::facade<Draw, Area> {};
+struct Drawable : pro::facade_builder
+    ::add_convention<MemDraw, void(std::ostream&)>
+    ::add_convention<MemArea, double() noexcept>
+    ::build {};
+
+PRO_DEF_MEM_DISPATCH(MemLog, Log);
+
+struct Logger : pro::facade_builder
+    ::add_convention<MemLog, void(const char*), void(const char*, const std::exception&)>
+    ::build {};
 
 class Rectangle {
  public:
+  explicit Rectangle(double width, double height) : width_(width), height_(height) {}
+  Rectangle(const Rectangle&) = default;
   void Draw(std::ostream& out) const
       { out << "{Rectangle: width = " << width_ << ", height = " << height_ << "}"; }
-  void SetWidth(double width) { width_ = width; }
-  void SetHeight(double height) { height_ = height; }
-  double Area() const { return width_ * height_; }
+  double Area() const noexcept { return width_ * height_; }
 
  private:
   double width_;
@@ -39,9 +42,10 @@ class Rectangle {
 
 class Circle {
  public:
+  explicit Circle(double radius) : radius_(radius) {}
+  Circle(const Circle&) = default;
   void Draw(std::ostream& out) const { out << "{Circle: radius = " << radius_ << "}"; }
-  void SetRadius(double radius) { radius_ = radius; }
-  double Area() const { return std::numbers::pi * radius_ * radius_; }
+  double Area() const noexcept { return std::numbers::pi * radius_ * radius_; }
 
  private:
   double radius_;
@@ -50,14 +54,14 @@ class Circle {
 class Point {
  public:
   void Draw(std::ostream& out) const { out << "{Point}"; }
-  constexpr double Area() const { return 0; }
+  constexpr double Area() const noexcept { return 0; }
 };
 
-std::string PrintDrawableToString(pro::proxy<DrawableFacade> p) {
+std::string PrintDrawableToString(pro::proxy<Drawable> p) {
   std::stringstream result;
   result << std::fixed << std::setprecision(5) << "shape = ";
-  p.invoke<Draw>(result);
-  result << ", area = " << p.invoke<Area>();
+  p->Draw(result);
+  result << ", area = " << p->Area();
   return std::move(result).str();
 }
 
@@ -84,26 +88,19 @@ std::vector<std::string> ParseCommand(const std::string& s) {
   return result;
 }
 
-pro::proxy<DrawableFacade> MakeDrawableFromCommand(const std::string& s) {
+pro::proxy<Drawable> MakeDrawableFromCommand(const std::string& s) {
   std::vector<std::string> parsed = ParseCommand(s);
   if (!parsed.empty()) {
     if (parsed[0u] == "Rectangle") {
       if (parsed.size() == 3u) {
         static std::pmr::unsynchronized_pool_resource rectangle_memory_pool;
         std::pmr::polymorphic_allocator<> alloc{&rectangle_memory_pool};
-        auto deleter = [alloc](Rectangle* ptr) mutable
-            { alloc.delete_object<Rectangle>(ptr); };
-        Rectangle* instance = alloc.new_object<Rectangle>();
-        std::unique_ptr<Rectangle, decltype(deleter)> p{instance, deleter};
-        p->SetWidth(std::stod(parsed[1u]));
-        p->SetHeight(std::stod(parsed[2u]));
-        return p;
+        return pro::allocate_proxy<Drawable, Rectangle>(alloc, std::stod(parsed[1u]), std::stod(parsed[2u]));
       }
     } else if (parsed[0u] == "Circle") {
       if (parsed.size() == 2u) {
-        Circle circle;
-        circle.SetRadius(std::stod(parsed[1u]));
-        return pro::make_proxy<DrawableFacade>(circle);
+        Circle circle{std::stod(parsed[1u])};
+        return pro::make_proxy<Drawable>(circle);
       }
     } else if (parsed[0u] == "Point") {
       if (parsed.size() == 1u) {
@@ -115,24 +112,56 @@ pro::proxy<DrawableFacade> MakeDrawableFromCommand(const std::string& s) {
   throw std::runtime_error{"Invalid command"};
 }
 
-}  // namespace
+class StreamLogger {
+ public:
+  explicit StreamLogger(std::ostream& out) : out_(&out) {}
+  StreamLogger(const StreamLogger&) = default;
+
+  void Log(const char* s) {
+    *out_ << "[INFO] " << s << "\n";
+  }
+  void Log(const char* s, const std::exception& e) {
+    *out_ << "[ERROR] " << s << " (exception info: "  << e.what() << ")\n";
+  }
+
+ private:
+  std::ostream* out_;
+};
+
+}  // namespace proxy_integration_tests_details
+
+namespace details = proxy_integration_tests_details;
 
 TEST(ProxyIntegrationTests, TestDrawable) {
-  pro::proxy<DrawableFacade> p = MakeDrawableFromCommand("Rectangle 2 3");
-  std::string s = PrintDrawableToString(std::move(p));
+  pro::proxy<details::Drawable> p = details::MakeDrawableFromCommand("Rectangle 2 3");
+  std::string s = details::PrintDrawableToString(std::move(p));
   ASSERT_EQ(s, "shape = {Rectangle: width = 2.00000, height = 3.00000}, area = 6.00000");
 
-  p = MakeDrawableFromCommand("Circle 1");
-  s = PrintDrawableToString(std::move(p));
+  p = details::MakeDrawableFromCommand("Circle 1");
+  s = details::PrintDrawableToString(std::move(p));
   ASSERT_EQ(s, "shape = {Circle: radius = 1.00000}, area = 3.14159");
 
-  p = MakeDrawableFromCommand("Point");
-  s = PrintDrawableToString(std::move(p));
+  p = details::MakeDrawableFromCommand("Point");
+  s = details::PrintDrawableToString(std::move(p));
   ASSERT_EQ(s, "shape = {Point}, area = 0.00000");
 
   try {
-    p = MakeDrawableFromCommand("Triangle 2 3");
+    p = details::MakeDrawableFromCommand("Triangle 2 3");
   } catch (const std::runtime_error& e) {
     ASSERT_STREQ(e.what(), "Invalid command");
   }
+}
+
+TEST(ProxyIntegrationTests, TestLogger) {
+  std::ostringstream out;
+  auto logger = pro::make_proxy<details::Logger, details::StreamLogger>(out);
+  logger->Log("hello");
+  try {
+    throw std::runtime_error{"runtime error!"};
+  } catch (const std::exception& e) {
+    logger->Log("world", e);
+  }
+  auto content = std::move(out).str();
+  ASSERT_EQ(content, "[INFO] hello\n\
+[ERROR] world (exception info: runtime error!)\n");
 }
