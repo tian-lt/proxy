@@ -9,7 +9,6 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-24.04
-    needs: report
     steps:
     - uses: actions/checkout@v4
     - name: pack and tag
