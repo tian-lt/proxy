@@ -20,6 +20,6 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         draft: true
-        files: proxy.tgz
+        files: proxy-*.tgz
         name: Proxy Release
         generate_release_notes: true
